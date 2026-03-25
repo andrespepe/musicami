@@ -493,41 +493,102 @@ body::after {
 /* ── ARTISTS GRID ── */
 .artists-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
   padding: 16px 20px;
   overflow-y: auto;
   height: 100%;
+  align-content: start;
 }
 
 .artist-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px 12px 14px;
+  padding: 0;
   cursor: pointer;
   transition: all .18s;
   position: relative;
   overflow: hidden;
 }
 
-.artist-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--orange-dim), var(--rust));
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform .18s;
+.artist-card:hover { background: var(--surface2); border-color: var(--border2); transform: translateY(-2px); box-shadow: var(--shadow-warm); }
+.artist-card:hover .artist-card-bar { opacity: 1; }
+
+.artist-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 14px 10px;
 }
 
-.artist-card:hover { background: var(--surface2); border-color: var(--border2); transform: translateY(-1px); box-shadow: var(--shadow-warm); }
-.artist-card:hover::before { transform: scaleX(1); }
+.artist-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 rgba(0,0,0,.5);
+  position: relative;
+}
 
-.artist-initial { font-family: var(--font-display); font-size: 32px; color: var(--orange-dim); line-height: 1; margin-bottom: 8px; text-shadow: 2px 2px 0 rgba(0,0,0,.4); }
-.artist-name { font-family: var(--font-head); font-size: 12px; font-weight: 500; letter-spacing: 1px; text-transform: uppercase; color: var(--cream); margin-bottom: 4px; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.artist-count { font-family: var(--font-mono); font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+.artist-avatar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+
+.artist-info { flex: 1; min-width: 0; }
+.artist-name {
+  font-family: var(--font-head);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+  color: var(--cream);
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin-bottom: 3px;
+}
+.artist-count { font-family: var(--font-mono); font-size: 9px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
+
+.artist-tracks-preview {
+  padding: 0 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.artist-track-preview {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: .3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 0;
+  border-top: 1px solid var(--border);
+  line-height: 1.5;
+}
+
+.artist-track-preview:first-child { border-top: 1px solid var(--border); }
+
+.artist-card-bar {
+  height: 3px;
+  opacity: .5;
+  transition: opacity .18s;
+}
 
 /* ── STATS ── */
 .stats-view { overflow-y: auto; padding: 20px 24px; height: 100%; }
@@ -1092,7 +1153,11 @@ const eqFilters = [];
 let vizRaf = null;
 
 function initAudioCtx() {
-  if (audioCtx) return;
+  if (audioCtx) {
+    // Already created — just make sure it's running
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return;
+  }
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 64;
@@ -1406,6 +1471,24 @@ function onSearch(q) {
 function updateMeta() { $('view-meta').textContent = filtered.length + ' tracks'; }
 
 // ── ARTISTS ───────────────────────────────
+// Color palettes for artist avatars — deterministic by name so same artist always gets same color
+const ARTIST_PALETTES = [
+  { bg: '#4a2d14', fg: '#e07b2a', bar: 'linear-gradient(90deg,#e07b2a,#c04a1e)' },
+  { bg: '#1a2d1a', fg: '#5a9030', bar: 'linear-gradient(90deg,#5a9030,#3a6020)' },
+  { bg: '#14204a', fg: '#4080c0', bar: 'linear-gradient(90deg,#4080c0,#2860a0)' },
+  { bg: '#2d1a2d', fg: '#9050b0', bar: 'linear-gradient(90deg,#9050b0,#703090)' },
+  { bg: '#2d2014', fg: '#d4a832', bar: 'linear-gradient(90deg,#d4a832,#a07820)' },
+  { bg: '#2a1414', fg: '#c04a4a', bar: 'linear-gradient(90deg,#c04a4a,#a03030)' },
+  { bg: '#14282a', fg: '#30a0a8', bar: 'linear-gradient(90deg,#30a0a8,#208090)' },
+  { bg: '#1e1e30', fg: '#7070d0', bar: 'linear-gradient(90deg,#7070d0,#5050b0)' },
+];
+
+function artistPalette(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
+  return ARTIST_PALETTES[hash % ARTIST_PALETTES.length];
+}
+
 function renderArtists() {
   const sorted = Object.entries(artistMap).sort((a,b) => {
     if (a[0] === '—') return 1;
@@ -1416,13 +1499,32 @@ function renderArtists() {
   grid.innerHTML = '';
   grid.style.display = 'grid';
   sorted.forEach(([name, songs]) => {
+    const pal = artistPalette(name);
     const card = document.createElement('div');
     card.className = 'artist-card';
     const initial = name === '—' ? '?' : (name[0] || '?').toUpperCase();
+    const displayName = name === '—' ? 'No Artist' : name;
+
+    const previewTracks = songs.slice(0, 3).map(s => {
+      const { title } = parseSong(s.name);
+      return `<div class="artist-track-preview">▸ ${esc(title)}</div>`;
+    }).join('');
+    const moreCount = songs.length > 3
+      ? `<div class="artist-track-preview" style="color:var(--muted2)">+${songs.length - 3} more...</div>`
+      : '';
+
     card.innerHTML = `
-      <div class="artist-initial">${esc(initial)}</div>
-      <div class="artist-name">${esc(name === '—' ? 'No Artist' : name)}</div>
-      <div class="artist-count">${songs.length} track${songs.length !== 1 ? 's' : ''}</div>`;
+      <div class="artist-card-bar" style="background:${pal.bar}"></div>
+      <div class="artist-card-header">
+        <div class="artist-avatar" style="background:${pal.bg};color:${pal.fg}">${esc(initial)}</div>
+        <div class="artist-info">
+          <div class="artist-name" title="${esc(displayName)}">${esc(displayName)}</div>
+          <div class="artist-count">${songs.length} track${songs.length !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+      <div class="artist-tracks-preview">
+        ${previewTracks}${moreCount}
+      </div>`;
     card.onclick = () => switchToArtist(name, songs);
     grid.appendChild(card);
   });
@@ -1507,9 +1609,24 @@ function playSongAt(vi) {
   currentIdx = vi;
   const song = filtered[vi];
   if (!song?.url) { showToast('⚠ No URL (demo mode)'); return; }
+
+  // Init (or resume) AudioContext BEFORE playing — required for audio to be heard
+  initAudioCtx();
+
   audio.src = song.url;
   audio.playbackRate = playbackSpeed;
-  audio.play().catch(e => showToast('Error: ' + e.message));
+
+  // Resume context if suspended (browser autoplay policy), then play
+  const doPlay = () => {
+    audio.play().catch(e => showToast('Error: ' + e.message));
+  };
+
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume().then(doPlay);
+  } else {
+    doPlay();
+  }
+
   isPlaying = true;
 
   playCount[song.url] = (playCount[song.url]||0) + 1;
@@ -1524,13 +1641,7 @@ function playSongAt(vi) {
   scrollToCurrent();
   animateTapeReels(true);
 
-  if (!audioCtx) {
-    initAudioCtx();
-    if (vizRaf === null) setTimeout(drawViz, 100);
-  } else {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    if (vizRaf === null) drawViz();
-  }
+  if (vizRaf === null) setTimeout(drawViz, 80);
 }
 
 function togglePlay() {
