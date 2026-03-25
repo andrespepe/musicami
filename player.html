@@ -490,104 +490,106 @@ body::after {
 .row-btn:hover { color: var(--cream); }
 .row-btn.fav-active { color: var(--rust) !important; opacity: 1; }
 
-/* ── ARTISTS GRID ── */
-.artists-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+/* ── ARTISTS LIST (NUEVA VISTA) ── */
+.artists-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   padding: 16px 20px;
   overflow-y: auto;
   height: 100%;
-  align-content: start;
 }
 
-.artist-card {
+.artist-accordion {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 0;
-  cursor: pointer;
-  transition: all .18s;
-  position: relative;
   overflow: hidden;
-}
-
-.artist-card:hover { background: var(--surface2); border-color: var(--border2); transform: translateY(-2px); box-shadow: var(--shadow-warm); }
-.artist-card:hover .artist-card-bar { opacity: 1; }
-
-.artist-card-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 14px 10px;
-}
-
-.artist-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  transition: all .2s;
   flex-shrink: 0;
-  font-family: var(--font-display);
-  font-size: 22px;
-  font-weight: bold;
-  text-shadow: 1px 1px 0 rgba(0,0,0,.5);
-  position: relative;
 }
 
-.artist-avatar::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+.artist-accordion:hover {
+  border-color: var(--border2);
 }
 
-.artist-info { flex: 1; min-width: 0; }
-.artist-name {
+.artist-acc-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background .15s;
+}
+
+.artist-acc-header:hover {
+  background: var(--surface2);
+}
+
+.artist-acc-name {
+  flex: 1;
   font-family: var(--font-head);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: .6px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--cream);
-  line-height: 1.3;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  margin-bottom: 3px;
-}
-.artist-count { font-family: var(--font-mono); font-size: 9px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; }
-
-.artist-tracks-preview {
-  padding: 0 14px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
 }
 
-.artist-track-preview {
+.artist-acc-count {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
-  letter-spacing: .3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 2px 0;
-  border-top: 1px solid var(--border);
-  line-height: 1.5;
+  margin-right: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
-.artist-track-preview:first-child { border-top: 1px solid var(--border); }
+.artist-acc-body {
+  display: none;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
 
-.artist-card-bar {
-  height: 3px;
-  opacity: .5;
-  transition: opacity .18s;
+.artist-acc-song {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px 10px 32px;
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: all .15s;
+}
+
+.artist-acc-song:last-child {
+  border-bottom: none;
+}
+
+.artist-acc-song:hover {
+  background: rgba(224,123,42,.05);
+  border-bottom-color: rgba(224,123,42,.12);
+}
+
+.artist-acc-song-name {
+  flex: 1;
+  font-family: var(--font-head);
+  font-size: 13px;
+  color: var(--cream-dim);
+  letter-spacing: .4px;
+}
+
+.artist-acc-song:hover .artist-acc-song-name {
+  color: var(--orange);
+}
+
+.chevron {
+  transition: transform .25s ease;
+  color: var(--muted);
+}
+.artist-accordion.open .chevron {
+  transform: rotate(180deg);
+  color: var(--orange);
+}
+.artist-accordion.open .artist-acc-body {
+  display: block;
 }
 
 /* ── STATS ── */
@@ -920,7 +922,9 @@ body::after {
         <div class="songs-list" id="songs-list"></div>
         <div id="sp-bot"></div>
       </div>
-      <div class="artists-grid" id="artists-grid" style="display:none"></div>
+      <!-- Listado de Artistas Reemplazado -->
+      <div class="artists-list" id="artists-list" style="display:none"></div>
+      
       <div class="stats-view" id="stats-view" style="display:none"></div>
     </div>
   </main>
@@ -1143,7 +1147,11 @@ let playbackSpeed = 1.0;
 let sleepTimerId = null, sleepEndTime = null;
 let artistMap = {};
 
+// SOLUCIÓN AL PROBLEMA DE AUDIO:
+// Añadir crossOrigin="anonymous" permite a la API de Web Audio procesar 
+// el stream desde un servidor externo (S3/R2) sin mutearlo por CORS.
 const audio = new Audio();
+audio.crossOrigin = "anonymous";
 audio.preload = 'metadata';
 
 // ── AUDIO CONTEXT / EQ ────────────────────
@@ -1153,11 +1161,7 @@ const eqFilters = [];
 let vizRaf = null;
 
 function initAudioCtx() {
-  if (audioCtx) {
-    // Already created — just make sure it's running
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    return;
-  }
+  if (audioCtx) return;
   audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   analyser = audioCtx.createAnalyser();
   analyser.fftSize = 64;
@@ -1345,13 +1349,11 @@ function handleArtistsClick() {
   const sub = $('artists-subnav');
   const hdr = $('nav-artists');
   const isOpen = sub.classList.contains('open');
-  // If not on artists view, go there first
   if (currentView !== 'artists' && !currentView.startsWith('artist:')) {
     switchView('artists');
     sub.classList.add('open');
     hdr.classList.add('expanded');
   } else {
-    // toggle subnav
     sub.classList.toggle('open', !isOpen);
     hdr.classList.toggle('expanded', !isOpen);
   }
@@ -1379,7 +1381,7 @@ function switchView(v) {
   document.querySelectorAll('.artist-nav-item').forEach(el => el.classList.remove('active'));
 
   $('scroller').style.display      = 'none';
-  $('artists-grid').style.display  = 'none';
+  $('artists-list').style.display  = 'none';
   $('stats-view').style.display    = 'none';
   $('state-empty').style.display   = 'none';
   $('search-wrap').style.display   = '';
@@ -1388,7 +1390,7 @@ function switchView(v) {
   if (v === 'artists') {
     $('view-title').textContent = 'Artists';
     $('search-wrap').style.display = 'none';
-    $('view-meta').textContent = Object.keys(artistMap).length + ' artists';
+    $('view-meta').textContent = Object.keys(artistMap).length + ' artistas';
     renderArtists(); return;
   }
 
@@ -1436,7 +1438,7 @@ function switchToArtist(name, songs) {
   $('nav-artists').classList.add('active');
 
   $('scroller').style.display      = filtered.length ? 'block' : 'none';
-  $('artists-grid').style.display  = 'none';
+  $('artists-list').style.display  = 'none';
   $('stats-view').style.display    = 'none';
   $('state-empty').style.display   = filtered.length ? 'none' : 'flex';
   $('search-wrap').style.display   = '';
@@ -1470,63 +1472,62 @@ function onSearch(q) {
 
 function updateMeta() { $('view-meta').textContent = filtered.length + ' tracks'; }
 
-// ── ARTISTS ───────────────────────────────
-// Color palettes for artist avatars — deterministic by name so same artist always gets same color
-const ARTIST_PALETTES = [
-  { bg: '#4a2d14', fg: '#e07b2a', bar: 'linear-gradient(90deg,#e07b2a,#c04a1e)' },
-  { bg: '#1a2d1a', fg: '#5a9030', bar: 'linear-gradient(90deg,#5a9030,#3a6020)' },
-  { bg: '#14204a', fg: '#4080c0', bar: 'linear-gradient(90deg,#4080c0,#2860a0)' },
-  { bg: '#2d1a2d', fg: '#9050b0', bar: 'linear-gradient(90deg,#9050b0,#703090)' },
-  { bg: '#2d2014', fg: '#d4a832', bar: 'linear-gradient(90deg,#d4a832,#a07820)' },
-  { bg: '#2a1414', fg: '#c04a4a', bar: 'linear-gradient(90deg,#c04a4a,#a03030)' },
-  { bg: '#14282a', fg: '#30a0a8', bar: 'linear-gradient(90deg,#30a0a8,#208090)' },
-  { bg: '#1e1e30', fg: '#7070d0', bar: 'linear-gradient(90deg,#7070d0,#5050b0)' },
-];
-
-function artistPalette(name) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) & 0xffff;
-  return ARTIST_PALETTES[hash % ARTIST_PALETTES.length];
-}
-
+// ── ARTISTS (SOLUCIÓN LISTA/ACORDEÓN) ──
 function renderArtists() {
   const sorted = Object.entries(artistMap).sort((a,b) => {
     if (a[0] === '—') return 1;
     if (b[0] === '—') return -1;
     return a[0].localeCompare(b[0]);
   });
-  const grid = $('artists-grid');
-  grid.innerHTML = '';
-  grid.style.display = 'grid';
+  
+  const listContainer = $('artists-list');
+  listContainer.innerHTML = '';
+  listContainer.style.display = 'flex';
+
   sorted.forEach(([name, songs]) => {
-    const pal = artistPalette(name);
-    const card = document.createElement('div');
-    card.className = 'artist-card';
-    const initial = name === '—' ? '?' : (name[0] || '?').toUpperCase();
-    const displayName = name === '—' ? 'No Artist' : name;
+    const accordion = document.createElement('div');
+    accordion.className = 'artist-accordion';
+    
+    // Header del artista
+    const header = document.createElement('div');
+    header.className = 'artist-acc-header';
+    const textLabel = name === '—' ? 'Sin Artista' : name;
+    const countText = `${songs.length} ${songs.length !== 1 ? 'canciones' : 'canción'}`;
+    
+    header.innerHTML = `
+      <div class="artist-acc-name">${esc(textLabel)}</div>
+      <div class="artist-acc-count">${countText}</div>
+      <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    `;
 
-    const previewTracks = songs.slice(0, 3).map(s => {
+    // Cuerpo con la lista de canciones
+    const body = document.createElement('div');
+    body.className = 'artist-acc-body';
+
+    songs.forEach((s, i) => {
       const { title } = parseSong(s.name);
-      return `<div class="artist-track-preview">▸ ${esc(title)}</div>`;
-    }).join('');
-    const moreCount = songs.length > 3
-      ? `<div class="artist-track-preview" style="color:var(--muted2)">+${songs.length - 3} more...</div>`
-      : '';
+      const songRow = document.createElement('div');
+      songRow.className = 'artist-acc-song';
+      songRow.innerHTML = `<div class="artist-acc-song-name">${i + 1}. ${esc(title)}</div>`;
+      
+      // Reproducir al hacer click
+      songRow.onclick = (e) => {
+        e.stopPropagation();
+        playSongByUrl(s.url);
+      };
+      
+      body.appendChild(songRow);
+    });
 
-    card.innerHTML = `
-      <div class="artist-card-bar" style="background:${pal.bar}"></div>
-      <div class="artist-card-header">
-        <div class="artist-avatar" style="background:${pal.bg};color:${pal.fg}">${esc(initial)}</div>
-        <div class="artist-info">
-          <div class="artist-name" title="${esc(displayName)}">${esc(displayName)}</div>
-          <div class="artist-count">${songs.length} track${songs.length !== 1 ? 's' : ''}</div>
-        </div>
-      </div>
-      <div class="artist-tracks-preview">
-        ${previewTracks}${moreCount}
-      </div>`;
-    card.onclick = () => switchToArtist(name, songs);
-    grid.appendChild(card);
+    // Acción para abrir/cerrar
+    header.onclick = () => {
+      const isOpen = accordion.classList.contains('open');
+      accordion.classList.toggle('open', !isOpen);
+    };
+
+    accordion.appendChild(header);
+    accordion.appendChild(body);
+    listContainer.appendChild(accordion);
   });
 }
 
@@ -1609,24 +1610,9 @@ function playSongAt(vi) {
   currentIdx = vi;
   const song = filtered[vi];
   if (!song?.url) { showToast('⚠ No URL (demo mode)'); return; }
-
-  // Init (or resume) AudioContext BEFORE playing — required for audio to be heard
-  initAudioCtx();
-
   audio.src = song.url;
   audio.playbackRate = playbackSpeed;
-
-  // Resume context if suspended (browser autoplay policy), then play
-  const doPlay = () => {
-    audio.play().catch(e => showToast('Error: ' + e.message));
-  };
-
-  if (audioCtx.state === 'suspended') {
-    audioCtx.resume().then(doPlay);
-  } else {
-    doPlay();
-  }
-
+  audio.play().catch(e => showToast('Error: ' + e.message));
   isPlaying = true;
 
   playCount[song.url] = (playCount[song.url]||0) + 1;
@@ -1641,7 +1627,13 @@ function playSongAt(vi) {
   scrollToCurrent();
   animateTapeReels(true);
 
-  if (vizRaf === null) setTimeout(drawViz, 80);
+  if (!audioCtx) {
+    initAudioCtx();
+    if (vizRaf === null) setTimeout(drawViz, 100);
+  } else {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (vizRaf === null) drawViz();
+  }
 }
 
 function togglePlay() {
