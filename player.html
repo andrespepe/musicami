@@ -785,13 +785,6 @@ body::after {
 .speed-opt { padding: 7px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--cream-dim); font-family: var(--font-mono); font-size: 11px; cursor: pointer; transition: all .12s; }
 .speed-opt:hover, .speed-opt.active { background: var(--surface2); border-color: var(--orange-dim); color: var(--orange); }
 
-/* EQ */
-.eq-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
-.eq-sliders { display: flex; gap: 8px; align-items: flex-end; height: 92px; }
-.eq-col { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1; }
-.eq-col label { font-family: var(--font-mono); font-size: 7px; color: var(--muted); text-align: center; white-space: nowrap; }
-.eq-col input[type=range] { -webkit-appearance: slider-vertical; writing-mode: bt-lr; appearance: slider-vertical; width: 18px; height: 62px; cursor: pointer; accent-color: var(--orange); }
-
 /* ── TOAST ── */
 .toast { position: fixed; bottom: 150px; left: 50%; transform: translateX(-50%) translateY(8px); background: var(--card); border: 1px solid var(--border2); border-radius: var(--radius); padding: 9px 18px; font-family: var(--font-mono); font-size: 11px; letter-spacing: .4px; color: var(--cream-dim); opacity: 0; transition: all .22s; pointer-events: none; z-index: 200; white-space: nowrap; box-shadow: var(--shadow-deep); }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -922,9 +915,8 @@ body::after {
         <div class="songs-list" id="songs-list"></div>
         <div id="sp-bot"></div>
       </div>
-      <!-- Listado de Artistas Reemplazado -->
-      <div class="artists-list" id="artists-list" style="display:none"></div>
       
+      <div class="artists-list" id="artists-list" style="display:none"></div>
       <div class="stats-view" id="stats-view" style="display:none"></div>
     </div>
   </main>
@@ -979,7 +971,7 @@ body::after {
       </div>
     </div>
 
-    <!-- Extra controls -->
+    <!-- Extra controls (EQ Button removed) -->
     <div class="extra-ctrl">
       <button class="icon-btn" onclick="openSpeedModal()" title="Playback Speed">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -988,10 +980,6 @@ body::after {
       <button class="icon-btn" onclick="openSleepModal()" title="Sleep Timer">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         SLP
-      </button>
-      <button class="icon-btn" onclick="openEqModal()" title="Equalizer">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
-        EQ
       </button>
     </div>
 
@@ -1109,19 +1097,6 @@ body::after {
   </div>
 </div>
 
-<!-- Equalizer -->
-<div class="overlay" id="ov-eq">
-  <div class="modal" style="width:440px">
-    <h3>Equalizer</h3>
-    <div class="eq-label">Band Gain (dB) — click play first to activate</div>
-    <div class="eq-sliders" id="eq-sliders"></div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="resetEq()">Reset</button>
-      <button class="btn btn-ghost" onclick="closeModal('ov-eq')">Close</button>
-    </div>
-  </div>
-</div>
-
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1147,75 +1122,11 @@ let playbackSpeed = 1.0;
 let sleepTimerId = null, sleepEndTime = null;
 let artistMap = {};
 
-// SOLUCIÓN AL PROBLEMA DE AUDIO:
-// Añadir crossOrigin="anonymous" permite a la API de Web Audio procesar 
-// el stream desde un servidor externo (S3/R2) sin mutearlo por CORS.
+// SOLUCIÓN:
+// Se elimina `audio.crossOrigin = "anonymous"` y la Web Audio API (Ecualizador real).
+// Esto permite que el navegador reproduzca los mp3 directamente desde Cloudflare R2 sin que fallen los controles CORS.
 const audio = new Audio();
-audio.crossOrigin = "anonymous";
 audio.preload = 'metadata';
-
-// ── AUDIO CONTEXT / EQ ────────────────────
-let audioCtx, analyser;
-const EQ_BANDS = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
-const eqFilters = [];
-let vizRaf = null;
-
-function initAudioCtx() {
-  if (audioCtx) return;
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 64;
-  const src = audioCtx.createMediaElementSource(audio);
-  let node = src;
-  EQ_BANDS.forEach(freq => {
-    const f = audioCtx.createBiquadFilter();
-    f.type = 'peaking';
-    f.frequency.value = freq;
-    f.Q.value = 1.4;
-    f.gain.value = 0;
-    eqFilters.push(f);
-    node.connect(f);
-    node = f;
-  });
-  node.connect(analyser);
-  analyser.connect(audioCtx.destination);
-}
-
-function openEqModal() {
-  if (!audioCtx) initAudioCtx();
-  buildEqUI();
-  $('ov-eq').classList.add('open');
-}
-
-function buildEqUI() {
-  const labels = ['60','170','310','600','1k','3k','6k','12k','14k','16k'];
-  const c = $('eq-sliders');
-  c.innerHTML = '';
-  EQ_BANDS.forEach((_, i) => {
-    const col = document.createElement('div');
-    col.className = 'eq-col';
-    const val = eqFilters[i] ? eqFilters[i].gain.value : 0;
-    col.innerHTML = `
-      <input type="range" id="eq-band-${i}" min="-12" max="12" step="1" value="${val}"
-        oninput="setEqBand(${i}, this.value)"
-        style="-webkit-appearance:slider-vertical;writing-mode:bt-lr;appearance:slider-vertical;width:18px;height:62px;cursor:pointer;accent-color:var(--orange);">
-      <label>${labels[i]}</label>`;
-    c.appendChild(col);
-  });
-}
-
-function setEqBand(i, val) {
-  if (eqFilters[i]) eqFilters[i].gain.value = parseFloat(val);
-}
-
-function resetEq() {
-  eqFilters.forEach((f, i) => {
-    f.gain.value = 0;
-    const el = $('eq-band-' + i);
-    if (el) el.value = 0;
-  });
-  showToast('EQ reset');
-}
 
 // ── VIRTUAL SCROLL ────────────────────────
 const ROW_H = 50;
@@ -1313,6 +1224,7 @@ async function boot() {
   switchView('all');
   buildPlSidebar();
   setupEvents();
+  drawViz(); // Inicia la animación del visualizador estético simulado
 }
 
 // ── ARTIST MAP ────────────────────────────
@@ -1472,7 +1384,7 @@ function onSearch(q) {
 
 function updateMeta() { $('view-meta').textContent = filtered.length + ' tracks'; }
 
-// ── ARTISTS (SOLUCIÓN LISTA/ACORDEÓN) ──
+// ── ARTISTS (LISTA/ACORDEÓN) ──
 function renderArtists() {
   const sorted = Object.entries(artistMap).sort((a,b) => {
     if (a[0] === '—') return 1;
@@ -1488,7 +1400,6 @@ function renderArtists() {
     const accordion = document.createElement('div');
     accordion.className = 'artist-accordion';
     
-    // Header del artista
     const header = document.createElement('div');
     header.className = 'artist-acc-header';
     const textLabel = name === '—' ? 'Sin Artista' : name;
@@ -1500,7 +1411,6 @@ function renderArtists() {
       <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
     `;
 
-    // Cuerpo con la lista de canciones
     const body = document.createElement('div');
     body.className = 'artist-acc-body';
 
@@ -1509,17 +1419,13 @@ function renderArtists() {
       const songRow = document.createElement('div');
       songRow.className = 'artist-acc-song';
       songRow.innerHTML = `<div class="artist-acc-song-name">${i + 1}. ${esc(title)}</div>`;
-      
-      // Reproducir al hacer click
       songRow.onclick = (e) => {
         e.stopPropagation();
         playSongByUrl(s.url);
       };
-      
       body.appendChild(songRow);
     });
 
-    // Acción para abrir/cerrar
     header.onclick = () => {
       const isOpen = accordion.classList.contains('open');
       accordion.classList.toggle('open', !isOpen);
@@ -1610,6 +1516,7 @@ function playSongAt(vi) {
   currentIdx = vi;
   const song = filtered[vi];
   if (!song?.url) { showToast('⚠ No URL (demo mode)'); return; }
+  
   audio.src = song.url;
   audio.playbackRate = playbackSpeed;
   audio.play().catch(e => showToast('Error: ' + e.message));
@@ -1626,14 +1533,6 @@ function playSongAt(vi) {
   refreshRows();
   scrollToCurrent();
   animateTapeReels(true);
-
-  if (!audioCtx) {
-    initAudioCtx();
-    if (vizRaf === null) setTimeout(drawViz, 100);
-  } else {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
-    if (vizRaf === null) drawViz();
-  }
 }
 
 function togglePlay() {
@@ -1722,25 +1621,35 @@ function animateTapeReels(spinning) {
   });
 }
 
-// ── VISUALIZER ────────────────────────────
+// ── FAKE VISUALIZER (Simulación Estética) ──
+let vizHeights = new Array(20).fill(0);
+
 function drawViz() {
   const canvas = $('visualizer');
-  if (!canvas || !analyser) { vizRaf = null; return; }
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const W = canvas.width  = canvas.offsetWidth;
   const H = canvas.height = canvas.offsetHeight;
-  const buf = new Uint8Array(analyser.frequencyBinCount);
+  const bars = 20, gap = 3;
+  const bw = (W - gap*(bars-1)) / bars;
 
   (function frame() {
-    vizRaf = requestAnimationFrame(frame);
-    analyser.getByteFrequencyData(buf);
+    requestAnimationFrame(frame);
     ctx.clearRect(0, 0, W, H);
-    const bars = 20, gap = 3;
-    const bw = (W - gap*(bars-1)) / bars;
+    
     for (let i = 0; i < bars; i++) {
-      const val = buf[i] / 255;
-      const bh  = Math.max(2, val * H);
-      const x   = i * (bw + gap);
+      // Si la música está sonando, damos altura aleatoria, simulando la música
+      if (isPlaying && !audio.paused) {
+         if (Math.random() > 0.6) vizHeights[i] = Math.random() * H * 0.9 + H * 0.1;
+      } else {
+         vizHeights[i] = 0;
+      }
+      
+      // Decaimiento suave (smoothness)
+      vizHeights[i] = Math.max(0, vizHeights[i] - H * 0.05);
+      
+      const bh = Math.max(2, vizHeights[i]);
+      const x = i * (bw + gap);
       const grad = ctx.createLinearGradient(0, H, 0, H-bh);
       grad.addColorStop(0, 'rgba(224,123,42,0.95)');
       grad.addColorStop(1, 'rgba(192,74,30,0.15)');
